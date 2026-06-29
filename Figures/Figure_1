@@ -1,1 +1,379 @@
 ## Figure 1
+
+# ============================================================================
+# R Script: Human PBMC only – Nature Methods‑compliant stacked bar plot
+# Figure: Cell type proportions for 6 histone marks (scCUT&Tag data)
+# ============================================================================
+
+# -------------------------------
+# 1. Load required libraries
+# -------------------------------
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+# -------------------------------
+# 2. Global figure parameters (Nature Methods standards)
+# -------------------------------
+SINGLE_COL_MM <- 89          # single column width
+FONT_FAMILY <- "Arial"       # Helvetica equivalent
+FONT_SIZE_AXIS_TITLE <- 7    # pt
+FONT_SIZE_AXIS_TEXT <- 6     # pt (minimum 5)
+FONT_SIZE_LEGEND_TITLE <- 7
+FONT_SIZE_LEGEND_TEXT <- 6
+FONT_SIZE_PANEL_LABEL <- 8   # pt, bold (if needed)
+OUTPUT_DPI <- 300
+
+# Colorblind‑safe palette (Wong, 2011)
+COLORBLIND_PAL <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                    "#0072B2", "#D55E00", "#CC79A7", "#999999")
+
+# -------------------------------
+# 3. Human PBMC data (your counts)
+# -------------------------------
+human_data <- data.frame(
+  Histone = c("H3K27ac", "H3K27me3", "H3K4me1", "H3K4me2", "H3K4me3", "H3K9me3"),
+  B = c(1072, 399, 1046, 586, 683, 745),
+  CD4T = c(3664, 1758, 3274, 2618, 2729, 1970),
+  CD8T = c(2943, 1785, 2571, 2278, 2432, 1697),
+  DC = c(588, 292, 445, 277, 340, 196),
+  Mono = c(5173, 2681, 3802, 2655, 2992, 2726),
+  NK = c(470, 324, 414, 335, 337, 323),
+  otherT = c(1079, 475, 903, 690, 723, 494),
+  other = c(620, 518, 315, 136, 150, 153)
+)
+
+# Melt to long format and compute percentages per histone
+human_long <- melt(human_data, id.vars = "Histone",
+                   variable.name = "CellType", value.name = "Count") %>%
+  group_by(Histone) %>%
+  mutate(Percentage = Count / sum(Count) * 100,
+         Histone = factor(Histone, levels = unique(Histone))) %>%
+  ungroup()
+
+# Order cell types as in the original table
+human_long$CellType <- factor(human_long$CellType,
+                              levels = c("B", "CD4T", "CD8T", "DC",
+                                         "Mono", "NK", "otherT", "other"))
+
+# -------------------------------
+# 4. Generate stacked bar plot
+# -------------------------------
+p_human <- ggplot(human_long, aes(x = Histone, y = Percentage, fill = CellType)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7,
+           color = "black", size = 0.2) +
+  scale_fill_manual(values = COLORBLIND_PAL) +
+  labs(x = NULL, y = "Percentage of cells (%)", fill = "Cell type") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 105)) +
+  theme_minimal(base_family = FONT_FAMILY) +
+  theme(
+    axis.line = element_line(color = "black", size = 0.25),
+    axis.ticks = element_line(color = "black", size = 0.25),
+    axis.ticks.length = unit(0.1, "cm"),
+    axis.title.y = element_text(size = FONT_SIZE_AXIS_TITLE,
+                                margin = margin(r = 5, unit = "pt")),
+    axis.text.x = element_text(size = FONT_SIZE_AXIS_TEXT, angle = 45,
+                               hjust = 1, color = "black"),
+    axis.text.y = element_text(size = FONT_SIZE_AXIS_TEXT, color = "black"),
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    legend.title = element_text(size = FONT_SIZE_LEGEND_TITLE),
+    legend.text = element_text(size = FONT_SIZE_LEGEND_TEXT),
+    legend.key.size = unit(0.25, "cm"),
+    legend.spacing.y = unit(0.05, "cm"),
+    plot.margin = margin(t = 10, r = 10, b = 5, l = 5, unit = "pt")
+  )
+
+# (Optional: add panel label "a" if needed – uncomment below)
+# p_human <- p_human + labs(tag = "a") +
+#   theme(plot.tag = element_text(size = FONT_SIZE_PANEL_LABEL, face = "bold",
+#                                 family = FONT_FAMILY),
+#         plot.tag.position = "top left")
+
+# -------------------------------
+# 5. Save the figure
+# -------------------------------
+
+
+#ggsave("output-directory/hPBMC_stackedbar_cellnumber.pdf", plot = p_human,
+       device = cairo_pdf,
+       width = SINGLE_COL_MM / 25.4,
+       height = 80 / 25.4,
+       units = "in",
+       bg = "white")
+
+
+# -------------------------------
+# 6. Print plot to screen (optional)
+# -------------------------------
+print(p_human)
+
+
+
+# ============================================================================
+# R Script: Mouse Brain only – Nature Methods‑compliant stacked bar plot
+# Figure: Cell type proportions for 6 marks (scCUT&Tag data)
+# ============================================================================
+
+# -------------------------------
+# 1. Load required libraries
+# -------------------------------
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+# -------------------------------
+# 2. Global figure parameters (Nature Methods standards)
+# -------------------------------
+SINGLE_COL_MM <- 89          # single column width
+FONT_FAMILY <- "Arial"       # Helvetica equivalent
+FONT_SIZE_AXIS_TITLE <- 7    # pt
+FONT_SIZE_AXIS_TEXT <- 6     # pt (minimum 5)
+FONT_SIZE_LEGEND_TITLE <- 7
+FONT_SIZE_LEGEND_TEXT <- 6
+OUTPUT_DPI <- 300
+
+# Colorblind‑safe palette extended to 10 colours (adapted from Wong + viridis)
+colorblind_pal_10 <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+                       "#0072B2", "#D55E00", "#CC79A7", "#999999",
+                       "#66CC99", "#FFCC33")
+
+# -------------------------------
+# 3. Mouse brain data (provided by user)
+# -------------------------------
+mouse_data <- data.frame(
+  Histone = c("H3K27ac", "H3K27me3", "H3K36me3", "H3K4me3", "Olig2", "Rad21"),
+  Astrocytes = c(2767, 4878, 1708, 5122, 120, 1440),
+  mOL = c(4205, 2827, 1846, 2432, 1635, 2056),
+  OEC = c(1040, 1447, 400, 1020, 979, 813),
+  OPC = c(450, 1130, 389, 941, 0, 0),
+  VLMC = c(1952, 1239, 0, 1433, 0, 0),
+  Microglia = c(0, 573, 0, 687, 0, 0),
+  Neurons1 = c(0, 1336, 0, 1018, 0, 0),
+  Neurons2 = c(0, 0, 0, 864, 0, 0),
+  Neurons3 = c(0, 0, 0, 222, 0, 0),
+  Unknown = c(0, 502, 0, 0, 1810, 66)
+)
+
+# -------------------------------
+# 4. Prepare data: melt and compute percentages per histone/mark
+# -------------------------------
+mouse_long <- melt(mouse_data, id.vars = "Histone",
+                   variable.name = "CellType", value.name = "Count") %>%
+  group_by(Histone) %>%
+  mutate(Percentage = Count / sum(Count) * 100,
+         Histone = factor(Histone, levels = unique(Histone))) %>%
+  ungroup()
+
+# Order cell types for legend (keep as they appear in data)
+mouse_long$CellType <- factor(mouse_long$CellType,
+                              levels = c("Astrocytes", "mOL", "OEC", "OPC", "VLMC",
+                                         "Microglia", "Neurons1", "Neurons2",
+                                         "Neurons3", "Unknown"))
+
+# -------------------------------
+# 5. Generate stacked bar plot
+# -------------------------------
+p_mouse <- ggplot(mouse_long, aes(x = Histone, y = Percentage, fill = CellType)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7,
+           color = "black", size = 0.2) +
+  scale_fill_manual(values = colorblind_pal_10) +
+  labs(x = NULL, y = "Percentage of cells (%)", fill = "Cell type") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 105)) +
+  theme_minimal(base_family = FONT_FAMILY) +
+  theme(
+    axis.line = element_line(color = "black", size = 0.25),
+    axis.ticks = element_line(color = "black", size = 0.25),
+    axis.ticks.length = unit(0.1, "cm"),
+    axis.title.y = element_text(size = FONT_SIZE_AXIS_TITLE,
+                                margin = margin(r = 5, unit = "pt")),
+    axis.text.x = element_text(size = FONT_SIZE_AXIS_TEXT, angle = 45,
+                               hjust = 1, color = "black"),
+    axis.text.y = element_text(size = FONT_SIZE_AXIS_TEXT, color = "black"),
+    panel.background = element_blank(),
+    panel.grid = element_blank(),
+    legend.title = element_text(size = FONT_SIZE_LEGEND_TITLE),
+    legend.text = element_text(size = FONT_SIZE_LEGEND_TEXT),
+    legend.key.size = unit(0.25, "cm"),
+    legend.spacing.y = unit(0.05, "cm"),
+    plot.margin = margin(t = 10, r = 10, b = 5, l = 5, unit = "pt")
+  )
+
+# -------------------------------
+# 6. Save the figure (single column, TIFF + PDF)
+# -------------------------------
+
+ggsave("output_directory/mBrain_stackedbar_cellnumber.pdf",
+       plot = p_mouse,
+       device = cairo_pdf,
+       width = SINGLE_COL_MM / 25.4,
+       height = 80 / 25.4,
+       units = "in",
+       bg = "white")
+
+# Print to screen
+print(p_mouse)
+
+
+# ============================================================================
+# Generate PDF figures only hPBMC
+# hPBMC read counts: log10 heatmap 
+# ============================================================================
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(cowplot)
+
+# Parameters ---------------------------------------------------------------
+SINGLE_WIDTH_IN <- 89 / 25.4      # 89 mm to inches
+DOUBLE_WIDTH_IN <- 183 / 25.4     # 183 mm to inches
+HEIGHT_IN <- 80 / 25.4            # 80 mm to inches
+FONT_FAMILY <- "Arial"
+FONT_SIZE_AXIS_TEXT <- 6
+FONT_SIZE_LEGEND_TITLE <- 7
+FONT_SIZE_LEGEND_TEXT <- 6
+FONT_SIZE_PANEL_LABEL <- 8
+
+# Data --------------------------------------------------------------------
+hPBMC <- data.frame(
+  CellType = c("B", "CD4T", "CD8T", "DC", "Mono", "NK", "other", "otherT"),
+  H3K27ac  = c(4756267, 12530194, 10377857, 2308019, 32875368, 1674459, 2848137, 3659303),
+  H3K27me3 = c(3219277, 15237968, 16637075, 2448704, 22419198, 2333054, 2207418, 4144785),
+  H3K4me1  = c(4714594, 13413447, 10186697, 2062722, 14710451, 1501807, 1320937, 3533700),
+  H3K4me2  = c(2835009, 13470760, 10914970, 1505190, 11571272, 1303075, 531933, 3524662),
+  H3K4me3  = c(2333502, 10503533, 8637597, 1249235, 10268458, 1001261, 390302, 2652270),
+  H3K9me3  = c(5447003, 12656737, 10327665, 1218714, 22363944, 1848591, 1519312, 2730822)
+)
+
+# Transformations ---------------------------------------------------------
+mat <- as.matrix(hPBMC[, -1])
+rownames(mat) <- hPBMC$CellType
+mat_log <- log10(mat + 1)
+mat_scaled <- scale(mat_log, center = TRUE, scale = TRUE)
+
+# Melt data ---------------------------------------------------------------
+melted_z <- melt(mat_scaled, varnames = c("CellType", "Histone"), value.name = "Z_score")
+melted_z$CellType <- factor(melted_z$CellType, levels = rownames(mat))
+melted_z$Histone <- factor(melted_z$Histone, levels = colnames(mat))
+
+melted_log <- melt(mat_log, varnames = c("CellType", "Histone"), value.name = "log10_Count")
+melted_log$CellType <- factor(melted_log$CellType, levels = rownames(mat))
+melted_log$Histone <- factor(melted_log$Histone, levels = colnames(mat))
+
+# Plot function (to avoid repetition) -------------------------------------
+base_theme <- function() {
+  theme_minimal(base_family = FONT_FAMILY) +
+    theme(
+      plot.tag = element_text(size = FONT_SIZE_PANEL_LABEL, face = "bold", family = FONT_FAMILY),
+      plot.tag.position = "topleft",
+      axis.text.x = element_text(angle = 45, hjust = 1, size = FONT_SIZE_AXIS_TEXT, color = "black"),
+      axis.text.y = element_text(size = FONT_SIZE_AXIS_TEXT, color = "black"),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      legend.title = element_text(size = FONT_SIZE_LEGEND_TITLE),
+      legend.text = element_text(size = FONT_SIZE_LEGEND_TEXT),
+      legend.key.size = unit(0.35, "cm"),
+      legend.position = "right",
+      plot.margin = margin(t = 5, r = 10, b = 5, l = 5, unit = "pt")
+    )
+}
+
+# Log10 plot --------------------------------------------------------------
+p_log <- ggplot(melted_log, aes(x = Histone, y = CellType, fill = log10_Count)) +
+  geom_tile(color = "white", size = 0.3) +
+  scale_fill_gradient(low = "#EFF3FF", high = "#08519C",
+                      name = "log-transformed") +
+  labs(x = NULL, y = NULL, tag = "b") +
+  base_theme()
+
+# Save individual PDFs ----------------------------------------------------
+ggsave("output_directory/hPBMC_heatmap_readnumber_log10.pdf", plot = p_log,
+       device = cairo_pdf, width = SINGLE_WIDTH_IN, height = HEIGHT_IN, bg = "white")
+
+
+# ============================================================================
+# standard PDF figures mBrain
+# GSE157637: Cell‑type‑specific read counts for 6 marks
+# ============================================================================
+
+# 1. Load libraries ---------------------------------------------------------
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+library(cowplot)
+
+# 2. Set Nature Genetics parameters -----------------------------------------
+SINGLE_WIDTH_IN <- 89 / 25.4      # 89 mm to inches
+DOUBLE_WIDTH_IN <- 183 / 25.4     # 183 mm to inches
+HEIGHT_IN <- 80 / 25.4            # 80 mm (adjustable)
+FONT_FAMILY <- "Arial"
+FONT_SIZE_AXIS_TEXT <- 6
+FONT_SIZE_LEGEND_TITLE <- 7
+FONT_SIZE_LEGEND_TEXT <- 6
+FONT_SIZE_PANEL_LABEL <- 8
+
+# 3. Mouse brain data (from your table, missing values = 0) ----------------
+mBrain <- data.frame(
+  CellType = c("Astrocytes", "mOL", "OEC", "OPC", "VLMC", 
+               "Microglia", "Neurons1", "Neurons2", "Neurons3", "Unknown"),
+  H3K27ac  = c(108756936, 264941819, 83571905, 21303951, 55065479, 0, 0, 0, 0, 0),
+  H3K27me3 = c(128721494, 289789846, 49357334, 59785513, 34266429, 97931844, 38923888, 0, 24704522, 0),
+  H3K36me3 = c(92481921, 115449394, 23744473, 38349577, 0, 0, 0, 0, 0, 0),
+  H3K4me3  = c(255527244, 234845568, 79680081, 69497098, 52552992, 56908828, 55881617, 43040352, 153445064, 0),
+  Olig2     = c(5866798, 139052421, 50975164, 0, 0, 0, 0, 0, 0, 29651772),
+  Rad21     = c(100939710, 171825274, 53552098, 0, 0, 0, 0, 0, 0, 3602364)
+)
+
+# 4. Transformations: log10(x+1) and per‑mark Z‑score ----------------------
+mat <- as.matrix(mBrain[, -1])
+rownames(mat) <- mBrain$CellType
+mat_log <- log10(mat + 1)                       # log10 with pseudocount
+mat_scaled <- scale(mat_log, center = TRUE, scale = TRUE)   # Z‑score per mark
+
+# 5. Melt data frames ------------------------------------------------------
+melted_z <- melt(mat_scaled, varnames = c("CellType", "Histone"), value.name = "Z_score")
+melted_z$CellType <- factor(melted_z$CellType, levels = mBrain$CellType)
+melted_z$Histone <- factor(melted_z$Histone, levels = colnames(mat))
+
+melted_log <- melt(mat_log, varnames = c("CellType", "Histone"), value.name = "log10_Count")
+melted_log$CellType <- factor(melted_log$CellType, levels = mBrain$CellType)
+melted_log$Histone <- factor(melted_log$Histone, levels = colnames(mat))
+
+# 6. Base theme for both plots ---------------------------------------------
+base_theme <- function() {
+  theme_minimal(base_family = FONT_FAMILY) +
+    theme(
+      plot.tag = element_text(size = FONT_SIZE_PANEL_LABEL, face = "bold", family = FONT_FAMILY),
+      plot.tag.position = "topleft",
+      axis.text.x = element_text(angle = 45, hjust = 1, size = FONT_SIZE_AXIS_TEXT, color = "black"),
+      axis.text.y = element_text(size = FONT_SIZE_AXIS_TEXT, color = "black"),
+      axis.ticks = element_blank(),
+      axis.line = element_blank(),
+      panel.grid = element_blank(),
+      panel.background = element_blank(),
+      legend.title = element_text(size = FONT_SIZE_LEGEND_TITLE),
+      legend.text = element_text(size = FONT_SIZE_LEGEND_TEXT),
+      legend.key.size = unit(0.35, "cm"),
+      legend.position = "right",
+      plot.margin = margin(t = 5, r = 10, b = 5, l = 5, unit = "pt")
+    )
+}
+
+
+# 8. Log10 heatmap (panel b) -----------------------------------------------
+p_log <- ggplot(melted_log, aes(x = Histone, y = CellType, fill = log10_Count)) +
+  geom_tile(color = "white", size = 0.3) +
+  scale_fill_gradient(low = "#EFF3FF", high = "#08519C",
+                      name = "log-transfromed") +
+  labs(x = NULL, y = NULL, tag = "b") +
+  base_theme()
+
+# 9. Save individual PDFs --------------------------------------------------
+
+ggsave("output_directory/mBrain_heatmap_readnumber_log10.pdf", plot = p_log,
+       device = cairo_pdf, width = SINGLE_WIDTH_IN, height = HEIGHT_IN, bg = "white")
+
+
