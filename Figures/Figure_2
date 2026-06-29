@@ -1,1 +1,457 @@
 ## Figure 2
+
+################################################################
+## Figure 2 (hPBMC part)
+################################################################
+# Load required packages
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+# ------------------------------------------------------------
+# 1. Read the four CSV files and label them
+# ------------------------------------------------------------
+# Real data
+real_with   <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/splitbam_realbam/result_corrected/result_frip/HumanPBMC_combined_peak_frip_summary_with_input.csv")
+real_without <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/splitbam_realbam/result_corrected/result_frip/HumanPBMC_combined_peak_frip_summary_without_input.csv")
+
+# Simulated data
+sim_with    <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/BAM/celltypeswisebam_50bp/result_frip/HumanPBMC_combined_peak_frip_summary_with_input.csv")
+sim_without <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/BAM/celltypeswisebam_50bp/result_frip/HumanPBMC_combined_peak_frip_summary_without_input.csv")
+
+# Add columns to distinguish data type and input condition
+real_with$DataType   <- "Real"
+real_with$Input      <- "With input"
+real_without$DataType <- "Real"
+real_without$Input    <- "Without input"
+
+sim_with$DataType    <- "Simulated"
+sim_with$Input       <- "With input"
+sim_without$DataType <- "Simulated"
+sim_without$Input    <- "Without input"
+
+# Combine all four
+data_all <- bind_rows(real_with, real_without, sim_with, sim_without)
+
+# Replace NA with 0
+data_all[is.na(data_all)] <- 0
+
+# Compute log10 peak count
+data_all$log10_Peaks <- log10(data_all$Number_of_Peaks + 1)
+
+# Create a single factor variable for the four combinations (conditions on x‑axis)
+data_all$Condition <- factor(
+  paste(data_all$DataType, data_all$Input, sep = " - "),
+  levels = c("Real - Without input", "Real - With input",
+             "Simulated - Without input", "Simulated - With input")
+)
+
+# ------------------------------------------------------------
+# 2. Define colours (7 methods for the legend)
+# ------------------------------------------------------------
+method_colors_nature <- c(
+  "DROMPAplus" = "#E64B35",
+  "Genrich"    = "#4DBBD5",
+  "GoPeaks"    = "#00A087",
+  "HOMER"      = "#3C5488",
+  "MACS2"      = "#F39B7F",
+  "SEACR"      = "#8491B4",
+  "SICER2"     = "#91D1C2"
+)
+
+# ------------------------------------------------------------
+# 3. Theme (no font issues)
+# ------------------------------------------------------------
+theme_nature_enhanced <- function(base_size = 10) {
+  theme_minimal(base_size = base_size) %+replace%
+    theme(
+      panel.border = element_rect(fill = NA, colour = "black", linewidth = 0.5),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_line(colour = "grey90", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(colour = "black", linewidth = 0.4),
+      axis.ticks.length = unit(1.5, "mm"),
+      axis.text = element_text(colour = "black", size = 9),
+      axis.title = element_text(colour = "black", size = 10, face = "bold"),
+      plot.title = element_text(face = "bold", size = 11, hjust = 0.5, margin = margin(b = 6)),
+      legend.title = element_text(face = "bold", size = 9),
+      legend.text = element_text(size = 8),
+      legend.key.size = unit(3, "mm"),
+      legend.position = "right",
+      plot.margin = margin(0.5,0.5,0.5,0.5, "cm")
+    )
+}
+
+# ------------------------------------------------------------
+# 4. Filter for H3K4me3 and cell type CD8T
+# ------------------------------------------------------------
+data_subset <- data_all %>% filter(Histone == "H3K4me3", Celltype == "CD8T")
+
+# Summarise: median and SE per Condition and Method
+median_summary <- data_subset %>%
+  group_by(Condition, Method) %>%
+  summarise(
+    median_log10_peaks = median(log10_Peaks, na.rm = TRUE),
+    se_log10_peaks = sd(log10_Peaks, na.rm = TRUE) / sqrt(n()),
+    n_samples = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(Method = factor(Method, levels = names(method_colors_nature)))
+
+# ------------------------------------------------------------
+# 5. Bar plot: conditions on x‑axis, methods as fill (legend)
+# ------------------------------------------------------------
+p_parallel <- ggplot(median_summary, aes(x = Condition, y = median_log10_peaks, fill = Method)) +
+  geom_col(position = position_dodge(0.85), width = 0.75, colour = NA, alpha = 0.85) +
+  geom_errorbar(aes(ymin = median_log10_peaks - se_log10_peaks,
+                    ymax = median_log10_peaks + se_log10_peaks),
+                position = position_dodge(0.85), width = 0.3,
+                linewidth = 0.4, colour = "black", alpha = 0.7) +
+  geom_jitter(data = data_subset,
+              aes(x = Condition, y = log10_Peaks, colour = Method),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.85),
+              size = 0.9, alpha = 0.25, show.legend = FALSE) +
+  scale_fill_manual(values = method_colors_nature, name = "Peak calling tools") +
+  scale_colour_manual(values = method_colors_nature, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.07)),
+                     name = expression(log[10]("Peak count + 1"))) +
+  labs(title = "H3K4me3 peak counts in CD8T",
+       subtitle = "Comparison: real vs simulated data, with vs without input",
+       x = "Condition") +
+  theme_nature_enhanced(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+# Display the plot
+print(p_parallel)
+
+# ------------------------------------------------------------
+# 6. Save the plot as PDF
+# ------------------------------------------------------------
+output_dir <- "output_directory"
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+ggsave(filename = file.path(output_dir, "hPBMC_peakcount_hist_main.pdf"),
+       plot = p_parallel,
+       width = 8, height = 6, dpi = 300, device = "pdf")
+
+
+################################################################
+## Figure 2 (mBrain part)
+################################################################
+
+# Load required packages
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+# ------------------------------------------------------------
+# Define cell type groups for each histone mark (if needed later)
+# ------------------------------------------------------------
+cell_type_groups <- list(
+  'H3K27ac-b' = c('Astrocytes','mOL','OEC','OPC','VLMC'),
+  'H3K27ac-s' = c('Astrocytes','mOL','OEC','OPC','VLMC'),
+  'H3K27me3' = c('Astrocytes','Microglia','mOL','Neurons1', 'Neurons3','OEC','OPC','VLMC'),
+  'H3K36me3' = c('Astrocytes','mOL','OEC','OPC'),
+  'H3K4me3' = c('Astrocytes','Microglia','mOL','Neurons1', 'Neurons2', 'Neurons3','OEC','OPC','VLMC'),
+  'Olig2' = c('Astrocytes','mOL','OEC', 'Unknown'),
+  'Rad21' = c('Astrocytes','mOL','OEC', 'Unknown')
+)
+
+# ------------------------------------------------------------
+# 1. Read the four CSV files and label them
+# ------------------------------------------------------------
+# Real data
+real_with   <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/splitbam_realbam/result_corrected/result_frip/MouseBrain_combined_peak_frip_summary_with_input.csv")
+real_without <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/splitbam_realbam/result_corrected/result_frip/MouseBrain_combined_peak_frip_summary_without_input.csv")
+
+# Simulated data
+sim_with    <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/result/celltypeswisebam_50bp/result_frip/MouseBrain_combined_peak_frip_summary_with_input.csv")
+sim_without <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/result/celltypeswisebam_50bp/result_frip/MouseBrain_combined_peak_frip_summary_without_input.csv")
+
+# Add columns to distinguish data type and input condition
+real_with$DataType   <- "Real"
+real_with$Input      <- "With input"
+real_without$DataType <- "Real"
+real_without$Input    <- "Without input"
+
+sim_with$DataType    <- "Simulated"
+sim_with$Input       <- "With input"
+sim_without$DataType <- "Simulated"
+sim_without$Input    <- "Without input"
+
+# Combine all four
+data_all <- bind_rows(real_with, real_without, sim_with, sim_without)
+
+# Replace NA with 0
+data_all[is.na(data_all)] <- 0
+
+# Compute log10 peak count
+data_all$log10_Peaks <- log10(data_all$Number_of_Peaks + 1)
+
+# Create a single factor variable for the four combinations (conditions on x‑axis)
+data_all$Condition <- factor(
+  paste(data_all$DataType, data_all$Input, sep = " - "),
+  levels = c("Real - Without input", "Real - With input",
+             "Simulated - Without input", "Simulated - With input")
+)
+
+# ------------------------------------------------------------
+# 2. Define colours (7 methods for the legend)
+# ------------------------------------------------------------
+method_colors_nature <- c(
+  "DROMPAplus" = "#E64B35",
+  "Genrich"    = "#4DBBD5",
+  "GoPeaks"    = "#00A087",
+  "HOMER"      = "#3C5488",
+  "MACS2"      = "#F39B7F",
+  "SEACR"      = "#8491B4",
+  "SICER2"     = "#91D1C2"
+)
+
+# ------------------------------------------------------------
+# 3. Theme (no font issues)
+# ------------------------------------------------------------
+theme_nature_enhanced <- function(base_size = 10) {
+  theme_minimal(base_size = base_size) %+replace%
+    theme(
+      panel.border = element_rect(fill = NA, colour = "black", linewidth = 0.5),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_line(colour = "grey90", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(colour = "black", linewidth = 0.4),
+      axis.ticks.length = unit(1.5, "mm"),
+      axis.text = element_text(colour = "black", size = 9),
+      axis.title = element_text(colour = "black", size = 10, face = "bold"),
+      plot.title = element_text(face = "bold", size = 11, hjust = 0.5, margin = margin(b = 6)),
+      legend.title = element_text(face = "bold", size = 9),
+      legend.text = element_text(size = 8),
+      legend.key.size = unit(3, "mm"),
+      legend.position = "right",
+      plot.margin = margin(0.5,0.5,0.5,0.5, "cm")
+    )
+}
+
+# ------------------------------------------------------------
+# 4. Filter for H3K4me3 and cell type mOL
+# ------------------------------------------------------------
+data_subset <- data_all %>% filter(Histone == "H3K4me3", Celltype == "mOL")
+
+# Summarise: median and SE per Condition and Method
+median_summary <- data_subset %>%
+  group_by(Condition, Method) %>%
+  summarise(
+    median_log10_peaks = median(log10_Peaks, na.rm = TRUE),
+    se_log10_peaks = sd(log10_Peaks, na.rm = TRUE) / sqrt(n()),
+    n_samples = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(Method = factor(Method, levels = names(method_colors_nature)))
+
+# ------------------------------------------------------------
+# 5. Bar plot: conditions on x‑axis, methods as fill (legend)
+# ------------------------------------------------------------
+p_parallel <- ggplot(median_summary, aes(x = Condition, y = median_log10_peaks, fill = Method)) +
+  geom_col(position = position_dodge(0.85), width = 0.75, colour = NA, alpha = 0.85) +
+  geom_errorbar(aes(ymin = median_log10_peaks - se_log10_peaks,
+                    ymax = median_log10_peaks + se_log10_peaks),
+                position = position_dodge(0.85), width = 0.3,
+                linewidth = 0.4, colour = "black", alpha = 0.7) +
+  geom_jitter(data = data_subset,
+              aes(x = Condition, y = log10_Peaks, colour = Method),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.85),
+              size = 0.9, alpha = 0.25, show.legend = FALSE) +
+  scale_fill_manual(values = method_colors_nature, name = "Peak calling tools") +
+  scale_colour_manual(values = method_colors_nature, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.07)),
+                     name = expression(log[10]("Peak count + 1"))) +
+  labs(title = "H3K4me3 peak counts in mOL",
+       subtitle = "Comparison: real vs simulated data, with vs without input",
+       x = "Condition") +
+  theme_nature_enhanced(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+# Display the plot
+print(p_parallel)
+
+# ------------------------------------------------------------
+# 6. Save the plot as PDF
+# ------------------------------------------------------------
+output_dir <- "output_directory"
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+ggsave(filename = file.path(output_dir, "mBrain_peakcount_hist_main.pdf"),
+       plot = p_parallel,
+       width = 8, height = 6, dpi = 300, device = "pdf")
+
+
+
+
+################################################################
+## Figure 2 (Combined hPBMC and mBrain part)
+################################################################
+
+# Load required packages
+library(ggplot2)
+library(dplyr)
+library(readr)
+
+# ------------------------------------------------------------
+# 1. Read the eight CSV files (human + mouse, real/simulated, with/without input)
+# ------------------------------------------------------------
+# Human real
+hreal_with   <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/splitbam_realbam/result_corrected/result_frip/HumanPBMC_combined_peak_frip_summary_with_input.csv")
+hreal_without <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/splitbam_realbam/result_corrected/result_frip/HumanPBMC_combined_peak_frip_summary_without_input.csv")
+
+# Human simulated
+hsim_with    <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/BAM/celltypeswisebam_50bp/result_frip/HumanPBMC_combined_peak_frip_summary_with_input.csv")
+hsim_without <- read_csv("/home/wahid/project_scHMTF/GSE195725_processed_data/BAM/celltypeswisebam_50bp/result_frip/HumanPBMC_combined_peak_frip_summary_without_input.csv")
+
+# Mouse real
+mreal_with   <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/splitbam_realbam/result_corrected/result_frip/MouseBrain_combined_peak_frip_summary_with_input.csv")
+mreal_without <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/splitbam_realbam/result_corrected/result_frip/MouseBrain_combined_peak_frip_summary_without_input.csv")
+
+# Mouse simulated
+msim_with    <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/result/celltypeswisebam_50bp/result_frip/MouseBrain_combined_peak_frip_summary_with_input.csv")
+msim_without <- read_csv("/home/wahid/project_scHMTF/GSE157637_processed_data/result/celltypeswisebam_50bp/result_frip/MouseBrain_combined_peak_frip_summary_without_input.csv")
+
+# Add columns for dataset, data type, and input condition
+# Human
+hreal_with$Dataset   <- "hPBMC"
+hreal_with$DataType  <- "real"
+hreal_with$Input     <- "with"
+hreal_without$Dataset <- "hPBMC"
+hreal_without$DataType <- "real"
+hreal_without$Input    <- "without"
+
+hsim_with$Dataset    <- "hPBMC"
+hsim_with$DataType   <- "simulated"
+hsim_with$Input      <- "with"
+hsim_without$Dataset <- "hPBMC"
+hsim_without$DataType <- "simulated"
+hsim_without$Input    <- "without"
+
+# Mouse
+mreal_with$Dataset   <- "mBrain"
+mreal_with$DataType  <- "real"
+mreal_with$Input     <- "with"
+mreal_without$Dataset <- "mBrain"
+mreal_without$DataType <- "real"
+mreal_without$Input    <- "without"
+
+msim_with$Dataset    <- "mBrain"
+msim_with$DataType   <- "simulated"
+msim_with$Input      <- "with"
+msim_without$Dataset <- "mBrain"
+msim_without$DataType <- "simulated"
+msim_without$Input    <- "without"
+
+# Combine all eight
+data_all <- bind_rows(hreal_with, hreal_without, hsim_with, hsim_without,
+                      mreal_with, mreal_without, msim_with, msim_without)
+
+# Replace NA with 0
+data_all[is.na(data_all)] <- 0
+
+# Compute log10 peak count
+data_all$log10_Peaks <- log10(data_all$Number_of_Peaks + 1)
+
+# Create the 8‑level condition factor (order as you specified)
+data_all$Condition <- factor(
+  paste(data_all$Dataset, data_all$DataType, data_all$Input, sep = "_"),
+  levels = c("hPBMC_real_with", "hPBMC_real_without",
+             "hPBMC_simulated_with", "hPBMC_simulated_without",
+             "mBrain_real_with", "mBrain_real_without",
+             "mBrain_simulated_with", "mBrain_simulated_without")
+)
+
+# ------------------------------------------------------------
+# 2. Define colours (7 methods)
+# ------------------------------------------------------------
+method_colors_nature <- c(
+  "DROMPAplus" = "#E64B35",
+  "Genrich"    = "#4DBBD5",
+  "GoPeaks"    = "#00A087",
+  "HOMER"      = "#3C5488",
+  "MACS2"      = "#F39B7F",
+  "SEACR"      = "#8491B4",
+  "SICER2"     = "#91D1C2"
+)
+
+# ------------------------------------------------------------
+# 3. Theme
+# ------------------------------------------------------------
+theme_nature_enhanced <- function(base_size = 10) {
+  theme_minimal(base_size = base_size) %+replace%
+    theme(
+      panel.border = element_rect(fill = NA, colour = "black", linewidth = 0.5),
+      panel.grid.major.x = element_blank(),
+      panel.grid.major.y = element_line(colour = "grey90", linewidth = 0.3),
+      panel.grid.minor = element_blank(),
+      axis.ticks = element_line(colour = "black", linewidth = 0.4),
+      axis.ticks.length = unit(1.5, "mm"),
+      axis.text = element_text(colour = "black", size = 9),
+      axis.title = element_text(colour = "black", size = 10, face = "bold"),
+      plot.title = element_text(face = "bold", size = 11, hjust = 0.5, margin = margin(b = 6)),
+      legend.title = element_text(face = "bold", size = 9),
+      legend.text = element_text(size = 8),
+      legend.key.size = unit(3, "mm"),
+      legend.position = "right",
+      plot.margin = margin(0.5,0.5,0.5,0.5, "cm")
+    )
+}
+
+# ------------------------------------------------------------
+# 4. Filter for H3K4me3 and appropriate cell types per species
+#    (human: CD8T; mouse: mOL)
+# ------------------------------------------------------------
+data_subset <- data_all %>%
+  filter(Histone == "H3K4me3") %>%
+  filter((Dataset == "hPBMC" & Celltype == "CD8T") |
+         (Dataset == "mBrain" & Celltype == "mOL"))
+
+# Summarise: median and SE per Condition and Method
+median_summary <- data_subset %>%
+  group_by(Condition, Method) %>%
+  summarise(
+    median_log10_peaks = median(log10_Peaks, na.rm = TRUE),
+    se_log10_peaks = sd(log10_Peaks, na.rm = TRUE) / sqrt(n()),
+    n_samples = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(Method = factor(Method, levels = names(method_colors_nature)))
+
+# ------------------------------------------------------------
+# 5. Bar plot: 8 conditions on x‑axis, methods as dodged bars
+# ------------------------------------------------------------
+p_parallel <- ggplot(median_summary, aes(x = Condition, y = median_log10_peaks, fill = Method)) +
+  geom_col(position = position_dodge(0.85), width = 0.75, colour = NA, alpha = 0.85) +
+  geom_errorbar(aes(ymin = median_log10_peaks - se_log10_peaks,
+                    ymax = median_log10_peaks + se_log10_peaks),
+                position = position_dodge(0.85), width = 0.3,
+                linewidth = 0.4, colour = "black", alpha = 0.7) +
+  geom_jitter(data = data_subset,
+              aes(x = Condition, y = log10_Peaks, colour = Method),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.85),
+              size = 0.9, alpha = 0.25, show.legend = FALSE) +
+  scale_fill_manual(values = method_colors_nature, name = "Peak calling tools") +
+  scale_colour_manual(values = method_colors_nature, guide = "none") +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.07)),
+                     name = expression(log[10]("Peak count + 1"))) +
+  labs(title = "H3K4me3 peak counts",
+       subtitle = "Human PBMC (CD8T) and Mouse brain (mOL) | Real vs simulated, with vs without input",
+       x = "Condition") +
+  theme_nature_enhanced(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+# Display the plot
+print(p_parallel)
+
+# ------------------------------------------------------------
+# 6. Save the plot as PDF
+# ------------------------------------------------------------
+output_dir <- "output_directory"
+dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+
+ggsave(filename = file.path(output_dir, "combined_hPBMC_mBrain_peakcount_conditions.pdf"),
+       plot = p_parallel,
+       width = 10, height = 6, dpi = 300, device = "pdf")
