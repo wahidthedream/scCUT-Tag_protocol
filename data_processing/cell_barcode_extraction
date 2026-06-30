@@ -61,3 +61,6 @@ for (mark_name in names(seurat_objects)) {
 cat("All barcode files exported to:", output_base, "\n")
 ```
 
+############################################################################
+#Extarct cell barcodes for mBrain similarly using obj$celltype instead of obj$predicted.celltype.l1
+############################################################################
